@@ -22,7 +22,7 @@ app.use(cookieParser())
 // Verify Token Middleware
 const verifyToken = async (req, res, next) => {
   const token = req.cookies?.token
-  console.log(token)
+  // console.log(token)
   if (!token) {
     return res.status(401).send({ message: 'unauthorized access' })
   }
@@ -92,6 +92,25 @@ async function run() {
     const usersCollection = client.db('stayvista').collection('users')
 
 
+    // verify Admin middleware
+    const verifyAdmin = async(req, res, next) =>{
+      console.log('Hello')
+      const user = req.user
+      const query = {email: user?.email}
+      const result = await usersCollection.findOne(query)
+      if(!result || result?.role !== 'admin') return res.status(401).send({message: "unauthorized access"})
+        next()
+    }
+    // verify Host middleware
+    const verifyHost = async(req, res, next) =>{
+      console.log('Hello')
+      const user = req.user
+      const query = {email: user?.email}
+      const result = await usersCollection.findOne(query)
+      if(!result || result?.role !== 'host') return res.status(401).send({message: "unauthorized access"})
+        next()
+    }
+
     // auth related api
     app.post('/jwt', async (req, res) => {
       const user = req.body
@@ -158,7 +177,7 @@ async function run() {
     })
 
     //get all users data from db
-    app.get('/users', async (req, res) => {
+    app.get('/users', verifyToken, verifyAdmin, async (req, res) => {
       const result = await usersCollection.find().toArray()
       res.send(result)
     })
@@ -187,14 +206,14 @@ async function run() {
     })
 
     // Save a room data in db
-    app.post('/room', async (req, res) => {
+    app.post('/room', verifyToken, verifyHost, async (req, res) => {
       const roomData = req.body;
       const result = roomsCollection.insertOne(roomData)
       res.send(result)
     })
 
     // get all rooms for host
-    app.get('/my-listings/:email', async (req, res) => {
+    app.get('/my-listings/:email', verifyToken, verifyHost, async (req, res) => {
       const email = req.params.email
       let query = { 'host.email': email }
       const result = await roomsCollection.find(query).toArray();
@@ -202,7 +221,7 @@ async function run() {
     })
 
     // Delete a room
-    app.delete('/room/:id', async (req, res) => {
+    app.delete('/room/:id', verifyToken, verifyHost, async (req, res) => {
       const id = req.params.id;
       const query = { _id: new ObjectId(id) }
       const result = await roomsCollection.deleteOne(query)
